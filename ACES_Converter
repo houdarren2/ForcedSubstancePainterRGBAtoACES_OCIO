@@ -1,0 +1,54 @@
+import os
+
+def clear_global_variables():
+    hou.hscript('setenv TEXTURE_FILE={}'.format(''))
+    hou.hscript('setenv TEXTURE_OUTPUT_FILE={}'.format('')) 
+    hou.hscript('varchange')
+    hou.hscript('setenv -u TEXTURE_FILE')
+    hou.hscript('setenv -u TEXTURE_OUTPUT_FILE')
+    hou.hscript('varchange')    
+
+node = hou.pwd()
+
+texture_file_formats = ('jpg', 'png', 'exr')
+
+extension_conversions = {
+                         'jpg': 'png',
+                         'png': 'png',
+                         }
+                         
+
+valid_texture_files = {}
+change_all_parms = node.parm("change_all_parms").evalAsInt() == 1
+is_test_run = node.parm("is_test_run").evalAsInt() == 1
+
+for parm, path in hou.fileReferences():
+    expanded_path = hou.expandString(path)
+    if os.path.isfile(expanded_path):
+        path_split = path.rsplit('.', 1)
+        relpath, extension = path_split
+        if len(path_split) == 2 and extension in texture_file_formats and os.path.exists(expanded_path):
+            texture_parms = valid_texture_files.get(path, [])
+            texture_parms.append(parm)
+            valid_texture_files[path] = texture_parms
+            
+if is_test_run:
+    for key, value in valid_texture_files.iteritems():
+        print '\n'.join((str(key), str(value), ''))
+else:
+    for texture_file, parms in valid_texture_files.iteritems():
+        path_split = texture_file.rsplit('.', 1)
+        relpath, extension = path_split
+        extension = extension_conversions.get(extension, extension);
+        if not relpath.endswith("_ACES_convert"):
+            texture_output_file = "{}_ACES_convert.{}".format(relpath, extension)
+            hou.hscript('setenv TEXTURE_FILE={}'.format(texture_file))
+            hou.hscript('setenv TEXTURE_OUTPUT_FILE={}'.format(texture_output_file))
+            hou.hscript('varchange')
+            hou.node('/obj/cop2net1/rop_comp1').render()
+            
+            if change_all_parms:
+                for parm in parms:
+                    parm.set(texture_output_file)
+            
+clear_global_variables()
